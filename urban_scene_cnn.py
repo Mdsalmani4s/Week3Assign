@@ -139,3 +139,92 @@ n_classes = len(full_dataset.classes)
 model = UrbanSceneCNN(n_classes)
 print(model)
 print(f"Total parameters: {sum(p.numel() for p in model.parameters()):,}")
+
+# =============================================================================
+# STEP 5: Train the CNN Model
+# COMMIT MESSAGE: "Trained CNN model for urban scene classification"
+# =============================================================================
+
+criterion  = nn.CrossEntropyLoss()
+optimizer  = optim.Adam(model.parameters(), lr=0.001)
+NUM_EPOCHS = 5
+
+history = {"train_loss": [], "val_loss": [], "val_acc": []}
+
+def train_model(model, train_loader, val_loader, optimizer, criterion, epochs=5):
+    for epoch in range(epochs):
+        # --- Training ---
+        model.train()
+        running_loss = 0.0
+        for images, labels in train_loader:
+            optimizer.zero_grad()
+            out  = model(images)
+            loss = criterion(out, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+
+        avg_train_loss = running_loss / len(train_loader)
+        history["train_loss"].append(avg_train_loss)
+
+        # --- Validation ---
+        model.eval()
+        val_loss, correct, total = 0.0, 0, 0
+        with torch.no_grad():
+            for images, labels in val_loader:
+                out  = model(images)
+                val_loss += criterion(out, labels).item()
+                _, pred = torch.max(out, 1)
+                total   += labels.size(0)
+                correct += (pred == labels).sum().item()
+
+        avg_val_loss = val_loss / len(val_loader)
+        val_acc      = correct / total
+        history["val_loss"].append(avg_val_loss)
+        history["val_acc"].append(val_acc)
+
+        print(f"Epoch {epoch+1}/{epochs} | "
+              f"Train Loss: {avg_train_loss:.4f} | "
+              f"Val Loss: {avg_val_loss:.4f} | "
+              f"Val Acc: {val_acc:.4f}")
+
+train_model(model, train_loader, val_loader, optimizer, criterion, epochs=NUM_EPOCHS)
+
+# Generate confusion matrix on validation set
+from sklearn.metrics import confusion_matrix
+import numpy as np
+
+model.eval()
+all_preds, all_labels = [], []
+with torch.no_grad():
+    for images, labels in val_loader:
+        out = model(images)
+        _, pred = torch.max(out, 1)
+        all_preds.extend(pred.cpu().numpy())
+        all_labels.extend(labels.cpu().numpy())
+
+cm = confusion_matrix(all_labels, all_preds)
+actual_classes = full_dataset.classes  # Use the actual loaded classes
+
+# Plot confusion matrix
+fig, ax = plt.subplots(figsize=(8, 6))
+im = ax.imshow(cm, cmap="Blues")
+ax.set_xticks(range(len(actual_classes)))
+ax.set_yticks(range(len(actual_classes)))
+ax.set_xticklabels(actual_classes, rotation=45, ha="right")
+ax.set_yticklabels(actual_classes)
+ax.set_xlabel("Predicted")
+ax.set_ylabel("Actual")
+ax.set_title("Confusion Matrix (Validation Set)")
+
+# Add text annotations
+for i in range(len(actual_classes)):
+    for j in range(len(actual_classes)):
+        text = ax.text(j, i, cm[i, j], ha="center", va="center", 
+                      color="white" if cm[i, j] > cm.max()/2 else "black")
+
+plt.colorbar(im, ax=ax)
+plt.tight_layout()
+plt.savefig("confusion_matrix.png")
+plt.close()
+print("Confusion matrix saved as confusion_matrix.png")
