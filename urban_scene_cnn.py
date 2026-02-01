@@ -94,3 +94,48 @@ print("Sample image saved as sample_image.png")
 
 
 
+# =============================================================================
+# STEP 4: Build a Simple CNN Model
+# COMMIT MESSAGE: "Implemented CNN model for urban scene classification"
+# =============================================================================
+
+import torch.nn as nn
+import torch.optim as optim
+
+class UrbanSceneCNN(nn.Module):
+    """
+    CNN with two conv blocks (each: Conv → BN → ReLU → MaxPool)
+    followed by a Dropout layer and one fully-connected classifier.
+    """
+    def __init__(self, n_classes):
+        super().__init__()
+        # Block 1: 3 → 32 channels, 128×128 → 64×64
+        self.block1 = nn.Sequential(
+            nn.Conv2d(3, 32, kernel_size=3, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        # Block 2: 32 → 64 channels, 64×64 → 32×32
+        self.block2 = nn.Sequential(
+            nn.Conv2d(32, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.MaxPool2d(2)
+        )
+        self.dropout = nn.Dropout(p=0.5)
+        # 64 channels × 32 × 32 spatial
+        self.classifier = nn.Linear(64 * 32 * 32, n_classes)
+
+    def forward(self, x):
+        x = self.block1(x)
+        x = self.block2(x)
+        x = torch.flatten(x, start_dim=1)
+        x = self.dropout(x)
+        x = self.classifier(x)
+        return x
+
+n_classes = len(full_dataset.classes)
+model = UrbanSceneCNN(n_classes)
+print(model)
+print(f"Total parameters: {sum(p.numel() for p in model.parameters()):,}")
