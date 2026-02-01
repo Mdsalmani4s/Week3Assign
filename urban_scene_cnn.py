@@ -228,3 +228,71 @@ plt.tight_layout()
 plt.savefig("confusion_matrix.png")
 plt.close()
 print("Confusion matrix saved as confusion_matrix.png")
+
+
+# =============================================================================
+# STEP 6: Evaluate Model Performance
+# COMMIT MESSAGE: "Evaluated CNN model performance on test data"
+# =============================================================================
+
+def evaluate_model(model, test_loader):
+    model.eval()
+    correct, total = 0, 0
+    with torch.no_grad():
+        for images, labels in test_loader:
+            out      = model(images)
+            _, pred  = torch.max(out, 1)
+            total   += labels.size(0)
+            correct += (pred == labels).sum().item()
+    return correct / total
+
+test_accuracy = evaluate_model(model, test_loader)
+print(f"Test Accuracy: {test_accuracy:.4f} ({test_accuracy*100:.2f}%)")
+
+# Calculate per-class accuracy on test set
+actual_classes = full_dataset.classes  # Use the actual loaded classes
+class_correct = {cat: 0 for cat in actual_classes}
+class_total = {cat: 0 for cat in actual_classes}
+
+model.eval()
+with torch.no_grad():
+    for images, labels in test_loader:
+        out = model(images)
+        _, pred = torch.max(out, 1)
+        for label, prediction in zip(labels, pred):
+            cat_name = actual_classes[label]
+            class_total[cat_name] += 1
+            if label == prediction:
+                class_correct[cat_name] += 1
+
+class_accuracies = {cat: class_correct[cat] / class_total[cat] 
+                    for cat in actual_classes if class_total[cat] > 0}
+
+# Plot per-class accuracy
+fig, ax = plt.subplots(figsize=(10, 5))
+cats = list(class_accuracies.keys())
+accs = list(class_accuracies.values())
+colors = plt.cm.viridis(np.linspace(0, 1, len(cats)))
+
+bars = ax.bar(cats, accs, color=colors)
+ax.set_ylabel("Accuracy")
+ax.set_xlabel("Urban Scene Category")
+ax.set_title(f"Per-Class Test Accuracy (Overall: {test_accuracy:.2%})")
+ax.set_ylim(0, 1)
+ax.grid(axis='y', alpha=0.3)
+plt.xticks(rotation=45, ha="right")
+
+# Add value labels on bars
+for bar, acc in zip(bars, accs):
+    height = bar.get_height()
+    ax.text(bar.get_x() + bar.get_width()/2., height + 0.02,
+            f'{acc:.2%}', ha='center', va='bottom', fontsize=9)
+
+plt.tight_layout()
+plt.savefig("class_accuracy_comparison.png")
+plt.close()
+print("Per-class accuracy plot saved as class_accuracy_comparison.png")
+
+# Save trained model weights
+torch.save(model.state_dict(), "urban_scene_cnn_model.pth")
+print("Model saved as urban_scene_cnn_model.pth")
